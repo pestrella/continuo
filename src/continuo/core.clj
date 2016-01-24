@@ -5,7 +5,7 @@
 
 ;; TODO: make configurable by the client
 (def ^:dynamic *instance-id* 1)
-(def ^:dynamic *date-offset* 1212188400000)
+(def ^:dynamic *ms-offset* 631152000000)
 
 ;; bitwise operates, more conveniently named
 (def >>> unsigned-bit-shift-right)
@@ -13,16 +13,19 @@
 (def | bit-or)
 (def & bit-and)
 
-(def shift-millis 3)
-(def offset (>>> *date-offset* shift-millis))
-
 (def counter-mask 0x00ffffff)
 (def counter-bits (Long/bitCount counter-mask))
-(def worker-mask 0x000ff)
-(def worker-bits (Long/bitCount worker-mask))
+(def inst-mask 0x000ff)
+(def inst-bits (Long/bitCount inst-mask))
 
-(def previous-time (ref 0))
-(def counter (ref 0))
+(defn- next-id
+  "Returns the next unique, 64-bit, sequenced, sortable ID."
+  [millis counter]
+  (let [id (-> (>>> millis 3)
+               (- (>>> *ms-offset* 3)))
+        counter+inst (| (<< counter inst-bits)
+                        (& *instance-id* inst-mask))]
+    (| (<< id counter-bits) (& counter+inst counter-mask))))
 
 (defn- tolerate-time-shift?
   "Returns true if the system clock went backwards a tolerated amount.
@@ -33,23 +36,21 @@
   (let [tdiff (- t (System/currentTimeMillis))]
     (< tdiff 100)))
 
-(defn- get-id
-  "Returns a unique, 64-bit, sequenced, sortable ID."
-  [millis counter offset]
-  (let [id (-> (>>> millis shift-millis)
-               (- offset)
-               (<< counter-bits))
-        counter+worker (| (<< counter worker-bits) (& *instance-id* worker-mask))]
-    (| id (& counter+worker counter-mask))))
+(def previous-time (ref 0))
+(def counter (ref 0))
 
 (defn gen-id []
   (when (not *instance-id*)
-    (throw (ex-info "Worker ID must be set" {})))
+    (throw (ex-info "Instance ID must be set" {})))
   (when (not (tolerate-time-shift? @previous-time))
-    (throw (ex-info "Clock has altered a significant amount; non-unique IDs may occur"
+    (throw (ex-info (str "Clock has altered a significant amount; "
+                         "non-unique IDs may occur")
                     {:previous-time @previous-time})))
   (let [t (System/currentTimeMillis)]
     (dosync
      (alter previous-time (fn [_ x] x) t)
      (alter counter + 1))
-    (get-id t @counter offset)))
+    (next-id t @counter)))
+
+(comment
+  (gen-id ))
