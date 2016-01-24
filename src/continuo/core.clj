@@ -1,10 +1,11 @@
 ;; Copyright © Paolo Estrella.
 ;; Authors: Paolo Estrella
 
-(ns continuo.core)
+(ns continuo.core
+  (:require [clojure.tools.logging :refer [warn]]))
 
 ;; TODO: make configurable by the client
-(def ^:dynamic *instance-id* 1)
+(def ^:dynamic *instance-id* nil)
 (def ^:dynamic *ms-offset* 631152000000)
 
 ;; bitwise operates, more conveniently named
@@ -20,11 +21,11 @@
 
 (defn- next-id
   "Returns the next unique, 64-bit, sequenced, sortable ID."
-  [millis counter]
+  [millis counter instance-id]
   (let [id (-> (>>> millis 3)
                (- (>>> *ms-offset* 3)))
         counter+inst (| (<< counter inst-bits)
-                        (& *instance-id* inst-mask))]
+                        (& instance-id inst-mask))]
     (| (<< id counter-bits) (& counter+inst counter-mask))))
 
 (defn- tolerate-time-shift?
@@ -41,16 +42,14 @@
 
 (defn gen-id []
   (when (not *instance-id*)
-    (throw (ex-info "Instance ID must be set" {})))
+    (warn (str "*instance-id* is not set; "
+               "non-unique IDs may occur over multiple JVMs!")))
   (when (not (tolerate-time-shift? @previous-time))
     (throw (ex-info (str "Clock has altered a significant amount; "
-                         "non-unique IDs may occur")
+                         "aborting in order to avoid non-unique IDs.")
                     {:previous-time @previous-time})))
   (let [t (System/currentTimeMillis)]
     (dosync
      (alter previous-time (fn [_ x] x) t)
      (alter counter + 1))
-    (next-id t @counter)))
-
-(comment
-  (gen-id ))
+    (next-id t @counter (or *instance-id* 1))))
