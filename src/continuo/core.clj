@@ -43,7 +43,7 @@
 (defn gen-id []
   (when (not *instance-id*)
     (warn (str "*instance-id* is not set; "
-               "non-unique IDs may occur over multiple JVMs!")))
+               "non-unique IDs may occur across a network.")))
   (when (not (tolerate-time-shift? @previous-time))
     (throw (ex-info (str "Clock has altered a significant amount; "
                          "aborting in order to avoid non-unique IDs.")

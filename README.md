@@ -4,15 +4,15 @@ _continuo_ is a library that generates unique, sequenced numbers.
 
 ## Usage
 
-Generating numbers that a unique on one host:
+Generating numbers that are unique on one host:
 
 ```
 user> (gen-id)
 1724978258329521153
 ```
 
-If you want to generate numbers that are unique across a network,
-then you should provide an instance ID for each host.
+To generate numbers that are unique across a network, you should
+provide an instance ID for each host.
 
 ```
 user> (binding [*instance-id* 112]
